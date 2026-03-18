@@ -1,0 +1,83 @@
+﻿<!DOCTYPE html>
+<html dir="rtl">
+<head>
+<meta charset="UTF-8">
+<title>מערכת</title>
+<link rel="stylesheet" href="/static/style.css">
+<script src="/static/main.js"></script>
+</head>
+<body>
+
+<header>
+ברוך הבא למערכת ישיבת בין הזמנים ניסן תשפ"ו
+</header>
+
+<div class="container">
+
+  <div class="card">
+    <h3>שינוי סיסמה</h3>
+    <form action="/change_password" method="post">
+      <input name="newpass" placeholder="סיסמה חדשה">
+      <button>שמור סיסמה</button>
+    </form>
+  </div>
+
+  <div class="card">
+    <a href="/excel"><button>הורדת Excel</button></a>
+    <button onclick="window.print()">הדפס</button>
+  </div>
+
+  <div class="card">
+
+    <input id="search" placeholder="חיפוש ת"ז או שם" onkeyup="filterTable()">
+    <select id="dayFilter" onchange="filterTable()">
+      <option value="">ללא סינון לפי יום</option>
+      <!-- כאן ניתן למלא את כל הימים מהמסד -->
+      <option value="א">א</option>
+      <option value="ב">ב</option>
+      <option value="ג">ג</option>
+    </select>
+
+    <table id="table">
+      <thead>
+        <tr>
+          <th>ת"ז</th>
+          <th>שם</th>
+          <!-- ימים: 3 עמודות לכל יום -->
+          <th>לפנה"ת א</th>
+          <th>תפילה א</th>
+          <th>סדר א</th>
+          <th>לפנה"ת ב</th>
+          <th>תפילה ב</th>
+          <th>סדר ב</th>
+          <th>לפנה"ת ג</th>
+          <th>תפילה ג</th>
+          <th>סדר ג</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for s in students %}
+        <tr>
+          <td contenteditable="true">{{ s.tz }}</td>
+          <td contenteditable="true">{{ s.name }}</td>
+          <td contenteditable="true">{{ s.days['א'].before if s.days['א'] else '' }}</td>
+          <td contenteditable="true">{{ s.days['א'].prayer if s.days['א'] else '' }}</td>
+          <td contenteditable="true">{{ s.days['א'].seder if s.days['א'] else '' }}</td>
+          <td contenteditable="true">{{ s.days['ב'].before if s.days['ב'] else '' }}</td>
+          <td contenteditable="true">{{ s.days['ב'].prayer if s.days['ב'] else '' }}</td>
+          <td contenteditable="true">{{ s.days['ב'].seder if s.days['ב'] else '' }}</td>
+          <td contenteditable="true">{{ s.days['ג'].before if s.days['ג'] else '' }}</td>
+          <td contenteditable="true">{{ s.days['ג'].prayer if s.days['ג'] else '' }}</td>
+          <td contenteditable="true">{{ s.days['ג'].seder if s.days['ג'] else '' }}</td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+
+    <button onclick="saveData()">שמור</button>
+
+  </div>
+</div>
+
+</body>
+</html>
