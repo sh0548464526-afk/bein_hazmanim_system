@@ -1,0 +1,119 @@
+﻿<!DOCTYPE html>
+<html dir="rtl">
+
+<head>
+
+<meta charset="UTF-8">
+
+<title>מערכת</title>
+
+<link rel="stylesheet" href="/static/style.css">
+
+<script src="/static/main.js"></script>
+
+</head>
+
+<body>
+
+<header>
+
+ברוך הבא למערכת ישיבת בין הזמנים ניסן תשפ"ו
+
+</header>
+
+<div class="container">
+
+<div class="card">
+
+<h3>שינוי סיסמה</h3>
+
+<form action="/change_password" method="post">
+
+<input
+name="newpass"
+placeholder="סיסמה חדשה">
+
+<button>
+שמור סיסמה
+</button>
+
+</form>
+
+</div>
+
+<div class="card">
+
+<a href="/excel">
+
+<button>
+הורדת Excel
+</button>
+
+</a>
+
+<button onclick="window.print()">
+הדפס
+</button>
+
+</div>
+
+<div class="card">
+
+<input
+id="search"
+placeholder="חיפוש"
+onkeyup="filterTable()">
+
+<table id="table">
+
+<thead>
+
+<tr>
+
+<th>ת"ז</th>
+<th>שם</th>
+
+</tr>
+
+</thead>
+
+<tbody>
+
+{% for s in students %}
+
+<tr>
+
+<td contenteditable="true">
+{{s[0]}}
+</td>
+
+<td contenteditable="true">
+{{s[1]}}
+</td>
+
+</tr>
+
+{% endfor %}
+
+<tr>
+
+<td contenteditable="true"></td>
+<td contenteditable="true"></td>
+
+</tr>
+
+</tbody>
+
+</table>
+
+<button onclick="saveData()">
+שמור
+</button>
+
+</div>
+
+</div>
+
+</body>
+
+</html>
