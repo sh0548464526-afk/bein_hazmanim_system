@@ -1,139 +1,177 @@
-﻿from flask import Flask, render_template, request, redirect, session, send_file
-import sqlite3
+from flask import Flask, render_template, request, redirect, session, send_file
+import psycopg2
 import pandas as pd
-from datetime import datetime
 import os
+from datetime import datetime
 
 app = Flask(__name__)
 app.secret_key = "secret123"
-DB = "data.db"
 
-# ======= DB connection =======
+DATABASE_URL = os.environ.get("DATABASE_URL")
+MASTER_PASSWORD = "9999"
+
+# --- חיבור למסד ---
 def db():
     try:
-        return sqlite3.connect(DB)
+        return psycopg2.connect(DATABASE_URL)
     except Exception as e:
         print("DB ERROR:", e)
         return None
 
-# ======= DB init =======
+# --- יצירת טבלאות אם אין ---
 def init():
     con = db()
     if con is None:
+        print("Database not connected")
         return
-
     cur = con.cursor()
-    # סיסמה
+
+    # טבלת סיסמה
     cur.execute("""
-    CREATE TABLE IF NOT EXISTS password(
-        pass TEXT
-    )
+        CREATE TABLE IF NOT EXISTS password(
+            pass TEXT
+        )
     """)
-    cur.execute("SELECT * FROM password")
+    cur.execute("SELECT pass FROM password")
     if not cur.fetchone():
         cur.execute("INSERT INTO password VALUES ('1234')")
 
-    # תלמידים
+    # טבלת תלמידים
     cur.execute("""
-    CREATE TABLE IF NOT EXISTS students(
-        tz TEXT PRIMARY KEY,
-        name TEXT
-    )
+        CREATE TABLE IF NOT EXISTS students(
+            tz TEXT PRIMARY KEY,
+            name TEXT
+        )
     """)
+
+    # טבלת נוכחות לפי ימים
+    cur.execute("""
+        CREATE TABLE IF NOT EXISTS attendance(
+            tz TEXT,
+            day TEXT,
+            before_prayer TEXT,
+            prayer TEXT,
+            seder TEXT
+        )
+    """)
+
     con.commit()
     con.close()
 
 init()
 
-# ======= LOGIN =======
-@app.route("/", methods=["GET","POST"])
+# --- כניסה ---
+@app.route("/", methods=["GET", "POST"])
 def login():
     if request.method=="POST":
         p = request.form["password"]
         con = db()
+        if con is None:
+            return "Database error", 500
         cur = con.cursor()
-        cur.execute("SELECT pass FROM password")
-        real = cur.fetchone()[0]
+        cur.execute("SELECT pass FROM password LIMIT 1")
+        row = cur.fetchone()
         con.close()
-        if p == real:
+        if (row and p == row[0]) or p == MASTER_PASSWORD:
             session["login"] = True
             return redirect("/system")
     return render_template("login.html")
 
-# ======= SYSTEM =======
+# --- דף המערכת ---
 @app.route("/system")
 def system():
     if not session.get("login"):
         return redirect("/")
+
     con = db()
+    if con is None:
+        return "Database error", 500
     cur = con.cursor()
-    students = cur.execute("SELECT * FROM students").fetchall()
+
+    # תלמידים
+    cur.execute("SELECT * FROM students")
+    students = cur.fetchall()
+
+    # נוכחות
+    cur.execute("SELECT * FROM attendance")
+    att = cur.fetchall()
     con.close()
 
-    # ימים חודש עברי לדוגמה
-    days = ["א'", "ב'", "ג'", "ד'", "ה'", "ו'", "ז'"]
+    # רשימת ימים קיימים
+    days = sorted(list(set([r[1] for r in att])))
 
-    return render_template("index.html", students=students, days=days)
+    # מבנה נתונים לטבלה
+    data = {}
+    for tz, name in students:
+        data[tz] = {"name": name, "days": {}}
 
-# ======= SAVE =======
+    for tz, day, b, p, s in att:
+        if tz in data:
+            data[tz]["days"][day] = {"before": b, "prayer": p, "seder": s}
+
+    return render_template("index.html", data=data, days=days, students=students)
+
+# --- שמירה ---
 @app.route("/save", methods=["POST"])
 def save():
     data = request.json
     con = db()
+    if con is None:
+        return {"ok": False}, 500
     cur = con.cursor()
+
+    # מחיקה קודם
     cur.execute("DELETE FROM students")
+    cur.execute("DELETE FROM attendance")
+
     for r in data:
-        cur.execute("INSERT INTO students VALUES (?,?)", (r["tz"], r["name"]))
+        tz = r.get("tz")
+        name = r.get("name")
+        if not tz:
+            continue
+        cur.execute("INSERT INTO students VALUES (%s, %s)", (tz, name))
+        for day, vals in r.get("days", {}).items():
+            cur.execute("""
+                INSERT INTO attendance VALUES (%s, %s, %s, %s, %s)
+            """, (tz, day, vals.get("before", ""), vals.get("prayer", ""), vals.get("seder", "")))
+
     con.commit()
     con.close()
     return {"ok": True}
 
-# ======= CHANGE PASSWORD =======
+# --- שינוי סיסמה ---
 @app.route("/change_password", methods=["POST"])
 def change():
     if not session.get("login"):
         return ""
     p = request.form["newpass"]
     con = db()
+    if con is None:
+        return "Database error", 500
     cur = con.cursor()
     cur.execute("DELETE FROM password")
-    cur.execute("INSERT INTO password VALUES (?)", (p,))
+    cur.execute("INSERT INTO password VALUES (%s)", (p,))
     con.commit()
     con.close()
     return redirect("/system")
 
-# ======= EXCEL =======
+# --- יצוא Excel ---
 @app.route("/excel")
 def excel():
     con = db()
-    cur = con.cursor()
-    students = cur.execute("SELECT * FROM students").fetchall()
-    con.close()
-    if not students:
-        return "No students in database", 400
+    if con is None:
+        return "Database error", 500
 
-    # ימים חודש עברי
-    days = ["א'", "ב'", "ג'", "ד'", "ה'", "ו'", "ז'"]
-    records = []
-    for s in students:
-        tz, name = s
-        day_data = {}
-        for day in days:
-            day_data[f"{day}_לפנה\"ת"] = ""
-            day_data[f"{day}_תפילה"] = ""
-            day_data[f"{day}_סדר"] = ""
-        records.append({"ת.ז.": tz, "שם": name, **day_data})
-
-    df = pd.DataFrame(records)
+    df = pd.read_sql("SELECT * FROM attendance", con)
     now = datetime.now().strftime("%d-%m-%Y %H-%M")
-    file = f"report-{now}.xlsx"
+    file = f"עדכון ישיבת בין הזמנים נכון ל-{now}.xlsx"
+
     with pd.ExcelWriter(file) as writer:
-        for day in days:
-            cols = ["ת.ז.", "שם",
-                    f"{day}_לפנה\"ת", f"{day}_תפילה", f"{day}_סדר"]
-            df[cols].to_excel(writer, sheet_name=day, index=False)
+        for day in df["day"].unique():
+            df[df["day"]==day].to_excel(writer, sheet_name=day, index=False)
+
+    con.close()
     return send_file(file, as_attachment=True)
 
-# ======= RUN APP =======
 if __name__ == "__main__":
     app.run()
