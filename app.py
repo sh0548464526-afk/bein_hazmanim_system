@@ -1,61 +1,61 @@
-﻿from flask import Flask,render_template,request,redirect,session,send_file
+from flask import Flask, render_template, request, redirect, session, send_file
 import sqlite3
 import pandas as pd
 
-app=Flask(__name__)
-app.secret_key="secret123"
+app = Flask(__name__)
+app.secret_key = "secret123"
 
-DB="data.db"
+DB = "data.db"
 
 def db():
     return sqlite3.connect(DB)
 
 def init():
+    con = db()
+    cur = con.cursor()
 
-    con=db()
-    cur=con.cursor()
-
+    # טבלת סיסמה
     cur.execute("""
     CREATE TABLE IF NOT EXISTS password(
-    pass TEXT
+        pass TEXT
     )
     """)
 
-    cur.execute("SELECT * FROM password")
+    cur.execute("SELECT pass FROM password")
+    row = cur.fetchone()
 
-    if not cur.fetchone():
+    if not row:
         cur.execute("INSERT INTO password VALUES ('1234')")
 
+    # טבלת תלמידים
     cur.execute("""
     CREATE TABLE IF NOT EXISTS students(
-    tz TEXT,
-    name TEXT
+        tz TEXT,
+        name TEXT
     )
     """)
 
     con.commit()
     con.close()
 
-@app.route("/",methods=["GET","POST"])
+# 🔥 חשוב מאוד – זה פותר את הבעיה שלך
+init()
+
+@app.route("/", methods=["GET", "POST"])
 def login():
 
-    if request.method=="POST":
+    if request.method == "POST":
+        p = request.form["password"]
 
-        p=request.form["password"]
-
-        con=db()
-        cur=con.cursor()
+        con = db()
+        cur = con.cursor()
 
         cur.execute("SELECT pass FROM password")
-
-        real=cur.fetchone()[0]
-
+        row = cur.fetchone()
         con.close()
 
-        if p==real:
-
-            session["login"]=True
-
+        if row and p == row[0]:
+            session["login"] = True
             return redirect("/system")
 
     return render_template("login.html")
@@ -66,58 +66,58 @@ def system():
     if not session.get("login"):
         return redirect("/")
 
-    con=db()
-    cur=con.cursor()
+    con = db()
+    cur = con.cursor()
 
-    rows=cur.execute(
-    "SELECT * FROM students"
+    rows = cur.execute(
+        "SELECT * FROM students"
     ).fetchall()
 
     con.close()
 
     return render_template(
-    "index.html",
-    students=rows
+        "index.html",
+        students=rows
     )
 
-@app.route("/save",methods=["POST"])
+@app.route("/save", methods=["POST"])
 def save():
 
-    data=request.json
+    data = request.json
 
-    con=db()
-    cur=con.cursor()
+    con = db()
+    cur = con.cursor()
 
     cur.execute("DELETE FROM students")
 
     for r in data:
-
-        cur.execute(
-        "INSERT INTO students VALUES (?,?)",
-        (r["tz"],r["name"])
-        )
+        if r["tz"] or r["name"]:
+            cur.execute(
+                "INSERT INTO students VALUES (?,?)",
+                (r["tz"], r["name"])
+            )
 
     con.commit()
     con.close()
 
-    return {"ok":True}
+    return {"ok": True}
 
-@app.route("/change_password",methods=["POST"])
+@app.route("/change_password", methods=["POST"])
 def change():
 
     if not session.get("login"):
         return ""
 
-    p=request.form["newpass"]
+    p = request.form["newpass"]
 
-    con=db()
-    cur=con.cursor()
+    con = db()
+    cur = con.cursor()
 
     cur.execute("DELETE FROM password")
 
     cur.execute(
-    "INSERT INTO password VALUES (?)",
-    (p,)
+        "INSERT INTO password VALUES (?)",
+        (p,)
     )
 
     con.commit()
@@ -128,26 +128,23 @@ def change():
 @app.route("/excel")
 def excel():
 
-    con=db()
+    con = db()
 
-    df=pd.read_sql_query(
-    "SELECT * FROM students",
-    con
+    df = pd.read_sql_query(
+        "SELECT * FROM students",
+        con
     )
 
-    file="report.xlsx"
+    file = "report.xlsx"
 
-    df.to_excel(file,index=False)
+    df.to_excel(file, index=False)
 
     con.close()
 
     return send_file(
-    file,
-    as_attachment=True
+        file,
+        as_attachment=True
     )
 
-if __name__=="__main__":
-
-    init()
-
-    app.run()
+if __name__ == "__main__":
+    app.run(host="0.0.0.0", port=5000)
