@@ -160,16 +160,24 @@ def excel():
     if con is None:
         return "Database error", 500
 
-    df = pd.read_sql("SELECT * FROM attendance", con)
+    cur = con.cursor()
+
+    cur.execute("SELECT * FROM attendance")
+    rows = cur.fetchall()
+
+    con.close()
+
+    if not rows:
+        return "No data", 400
+
+    df = pd.DataFrame(rows, columns=["tz","day","before_prayer","prayer","seder"])
 
     now = datetime.now().strftime("%d-%m-%Y %H-%M")
-    file = f"עדכון ישיבת בין הזמנים נכון ל-{now}.xlsx"
+    file = f"report-{now}.xlsx"
 
     with pd.ExcelWriter(file) as writer:
         for day in df["day"].unique():
-            df[df["day"] == day].to_excel(writer, sheet_name=day, index=False)
-
-    con.close()
+            df[df["day"] == day].to_excel(writer, sheet_name=str(day), index=False)
 
     return send_file(file, as_attachment=True)
 
