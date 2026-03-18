@@ -1,5 +1,0 @@
-flask
-pandas
-gunicorn
-openpyxl
-psycopg2-binary
