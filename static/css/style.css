@@ -1,0 +1,10 @@
+body { font-family: Arial, sans-serif; direction: rtl; text-align: right; margin: 20px; background: #f4f4f4; }
+header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px; }
+button { padding: 5px 10px; margin-left: 5px; cursor: pointer; }
+.login-container { width: 300px; margin: 100px auto; padding: 20px; background: #fff; border-radius: 8px; box-shadow: 0 0 10px #ccc; }
+.login-container input { width: 100%; padding: 8px; margin-bottom: 10px; }
+.error { color: red; }
+table { width: 100%; border-collapse: collapse; background: #fff; }
+table th, table td { border: 1px solid #ccc; padding: 5px; text-align: center; }
+.filters { margin-bottom: 10px; }
+.settings-btn { font-size: 18px; }

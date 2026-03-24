@@ -1,101 +1,92 @@
-
 from flask import Flask, render_template, request, redirect, url_for, send_file, jsonify
 from flask_sqlalchemy import SQLAlchemy
-from werkzeug.security import generate_password_hash, check_password_hash
-import pandas as pd
-import io
+from datetime import datetime
 import os
-import datetime
 
 app = Flask(__name__)
-app.config['SQLALCHEMY_DATABASE_URI'] = os.environ.get('DATABASE_URL', 'sqlite:///test.db')
-app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
-app.secret_key = 'supersecretkey'
+app.config["SQLALCHEMY_DATABASE_URI"] = os.environ.get("DATABASE_URL", "postgresql://user:pass@localhost/dbname")
+app.config["SQLALCHEMY_TRACK_MODIFICATIONS"] = False
 db = SQLAlchemy(app)
 
-# ------------------ MODELS ------------------
+# --------- Models ---------
 class User(db.Model):
+    __tablename__ = "users"
     id = db.Column(db.Integer, primary_key=True)
-    username = db.Column(db.String(80), unique=True, nullable=False)
-    password = db.Column(db.String(200), nullable=False)
+    username = db.Column(db.String(50), unique=True, nullable=False)
+    password = db.Column(db.String(100), nullable=False)
 
 class Student(db.Model):
+    __tablename__ = "students"
     id = db.Column(db.Integer, primary_key=True)
     tz = db.Column(db.String(20), unique=True, nullable=False)
     name = db.Column(db.String(100), nullable=False)
 
 class Day(db.Model):
+    __tablename__ = "days"
     id = db.Column(db.Integer, primary_key=True)
-    date_name = db.Column(db.String(50), unique=True, nullable=False)
+    name = db.Column(db.String(50), nullable=False)
     active = db.Column(db.Boolean, default=True)
 
 class Shift(db.Model):
+    __tablename__ = "shifts"
     id = db.Column(db.Integer, primary_key=True)
     name = db.Column(db.String(50), nullable=False)
-    start_time = db.Column(db.String(5))
+    start_time = db.Column(db.String(10))
     amount = db.Column(db.Float)
     late_deduction = db.Column(db.Float)
 
 class Content(db.Model):
+    __tablename__ = "content"
     id = db.Column(db.Integer, primary_key=True)
-    student_tz = db.Column(db.String(20), db.ForeignKey('student.tz'))
-    student_name = db.Column(db.String(100))
-    # עמודות דינמיות לכל יום
-    # לדוגמה: day_1_shift1, day_1_shift2, day_1_shift3, day_1_total
+    student_id = db.Column(db.Integer, db.ForeignKey("students.id"))
+    student = db.relationship("Student")
+    day_id = db.Column(db.Integer, db.ForeignKey("days.id"))
+    day = db.relationship("Day")
+    shift_id = db.Column(db.Integer, db.ForeignKey("shifts.id"))
+    shift = db.relationship("Shift")
+    arrival_time = db.Column(db.String(10))
+    amount_due = db.Column(db.Float)
+    total = db.Column(db.Float)
 
-# ------------------ ROUTES ------------------
-@app.route('/')
+# --------- Routes ---------
+@app.route("/")
 def index():
-    return redirect(url_for('login'))
+    return redirect(url_for("login"))
 
-@app.route('/login', methods=['GET','POST'])
+@app.route("/login", methods=["GET", "POST"])
 def login():
-    if request.method == 'POST':
-        username = request.form['username']
-        password = request.form['password']
+    if request.method == "POST":
+        username = request.form.get("username")
+        password = request.form.get("password")
         user = User.query.filter_by(username=username).first()
-        if user and check_password_hash(user.password, password):
-            return redirect(url_for('dashboard'))
-        return 'שם משתמש או סיסמה שגויים', 401
-    return render_template('login.html')
+        if user and user.password == password:
+            return redirect(url_for("dashboard"))
+        return render_template("login.html", error="Invalid credentials")
+    return render_template("login.html")
 
-@app.route('/dashboard')
+@app.route("/dashboard")
 def dashboard():
-    students = Student.query.all()
-    days = Day.query.filter_by(active=True).all()
-    shifts = Shift.query.all()
-    return render_template('dashboard.html', students=students, days=days, shifts=shifts)
+    return render_template("dashboard.html")
 
-@app.route('/download_excel')
+@app.route("/settings")
+def settings():
+    return render_template("settings.html")
+
+@app.route("/download_excel")
 def download_excel():
-    students = Student.query.all()
-    days = Day.query.filter_by(active=True).all()
-    # יצירת DataFrame לדוגמה
-    data = []
-    for s in students:
-        row = {'תז': s.tz, 'שם': s.name}
-        for d in days:
-            row[d.date_name] = '08:00'  # Placeholder
-        data.append(row)
-    df = pd.DataFrame(data)
-    output = io.BytesIO()
-    df.to_excel(output, index=False)
-    output.seek(0)
-    filename = f"עדכון ישיבת בין הזמנים נכון ל {datetime.datetime.now().strftime('%Y-%m-%d %H-%M-%S')}.xlsx"
-    return send_file(output, as_attachment=True, download_name=filename, mimetype='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet')
+    # Placeholder file generation
+    filename = f"עדכון ישיבת בין הזמנים נכון ל {datetime.now().strftime('%Y-%m-%d %H-%M-%S')}.xlsx"
+    path = os.path.join("static", filename)
+    with open(path, "w", encoding="utf-8") as f:
+        f.write("TZ,Name,Day1,Day2,Day3,Total\n")
+    return send_file(path, as_attachment=True)
 
-# ------------------ API Example ------------------
-@app.route('/api/phone', methods=['POST'])
-def api_phone():
-    # כאן ייכנסו פרמטרים מהקו טלפון
+# --------- API Placeholder for Phone Line ---------
+@app.route("/api/phone_line", methods=["POST"])
+def phone_line_api():
     data = request.json
-    # לדוגמה - החזר אותו דבר
-    return jsonify(data)
+    # Placeholder response
+    return jsonify({"status": "ok", "received": data})
 
-if __name__ == '__main__':
-    db.create_all()
-    # יצירת משתמש admin לדוגמה
-    if not User.query.filter_by(username='admin').first():
-        db.session.add(User(username='admin', password=generate_password_hash('admin', method='sha256')))
-        db.session.commit()
-    app.run(host='0.0.0.0', port=5000, debug=True)
+if __name__ == "__main__":
+    app.run(debug=True)
