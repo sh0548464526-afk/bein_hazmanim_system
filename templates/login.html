@@ -1,21 +1,17 @@
 <!DOCTYPE html>
-<html lang="he">
+<html>
 <head>
-<meta charset="UTF-8">
-<title>התחברות</title>
-<link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
+    <title>התחברות</title>
+    <link rel="stylesheet" href="../static/css/style.css">
 </head>
 <body>
 <div class="login-container">
-  <h1>התחברות למערכת</h1>
-  {% if error %}
-    <div class="error">{{ error }}</div>
-  {% endif %}
-  <form method="post">
-    <input type="text" name="username" placeholder="שם משתמש" required>
-    <input type="password" name="password" placeholder="סיסמה" required>
-    <button type="submit">התחבר</button>
-  </form>
+    <h1>התחברות למערכת ישיבת בין הזמנים</h1>
+    <form action="/login" method="post">
+        <input type="text" name="username" placeholder="שם משתמש" required>
+        <input type="password" name="password" placeholder="סיסמה" required>
+        <button type="submit">התחבר</button>
+    </form>
 </div>
 </body>
 </html>

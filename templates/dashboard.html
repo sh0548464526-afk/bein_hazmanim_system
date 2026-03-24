@@ -1,30 +1,26 @@
 <!DOCTYPE html>
-<html lang="he">
+<html>
 <head>
-<meta charset="UTF-8">
-<title>דשבורד</title>
-<link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
-<script src="{{ url_for('static', filename='js/script.js') }}"></script>
+    <title>Dashboard</title>
+    <link rel="stylesheet" href="../static/css/style.css">
 </head>
 <body>
-<header>
 <h1>ברוך הבא למערכת ישיבת בין הזמנים</h1>
-<button onclick="location.href='/settings'" class="settings-btn">⚙️ הגדרות</button>
-<button onclick="location.href='/download_excel'">הורד אקסל</button>
-<button onclick="alert('התנתקות')">התנתק</button>
-</header>
-<div class="filters">
-<input type="text" id="search" placeholder="חיפוש תלמיד">
-<select id="day-filter">
-  <option value="">ללא סינון</option>
-  <option value="יום א'">יום א'</option>
-  <option value="יום ב'">יום ב'</option>
+<button>התנתק</button>
+<button>הגדרות ⚙️</button>
+<input type="text" placeholder="חיפוש תלמיד" onkeyup="filterTable(this.value)">
+<select>
+    <option value="">ללא סינון</option>
+    {% for day in days %}
+    <option value="{{ day.name }}">{{ day.name }}</option>
+    {% endfor %}
 </select>
-<button id="print-btn">הדפס</button>
-</div>
-<table id="main-table">
-<tr><th>ת"ז</th><th>שם</th><th>יום 1</th><th>יום 2</th><th>יום 3</th><th>סה"כ</th><th>עריכה</th></tr>
-<tr><td>123456789</td><td>ישראל ישראלי</td><td>08:00</td><td>08:05</td><td>08:00</td><td>150</td><td><button>ערוך</button></td></tr>
+<table id="students-table">
+    <tr><th>ת"ז</th><th>שם</th></tr>
+    {% for student in students %}
+    <tr><td>{{ student.tz }}</td><td>{{ student.name }}</td></tr>
+    {% endfor %}
 </table>
+<script src="../static/js/main.js"></script>
 </body>
 </html>
