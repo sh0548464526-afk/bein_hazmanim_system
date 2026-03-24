@@ -1,13 +1,14 @@
+
 document.getElementById("search").addEventListener("keyup",function(){
 
-let value=this.value.toLowerCase()
+let v=this.value.toLowerCase()
 
-document.querySelectorAll("#table tr").forEach(row=>{
+document.querySelectorAll("#table tr").forEach(r=>{
 
-if(row.innerText.toLowerCase().includes(value))
-row.style.display=""
+if(r.innerText.toLowerCase().includes(v))
+ r.style.display=""
 else
-row.style.display="none"
+ r.style.display="none"
 
 })
 
