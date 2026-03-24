@@ -7,7 +7,7 @@ from datetime import datetime
 from openpyxl import Workbook
 
 app=Flask(__name__)
-app.secret_key="secret"
+app.secret_key="secret123"
 
 app.config["SQLALCHEMY_DATABASE_URI"]=os.getenv("DATABASE_URL","sqlite:///local.db")
 app.config["SQLALCHEMY_TRACK_MODIFICATIONS"]=False
@@ -40,7 +40,7 @@ class Seder(db.Model):
 class Attendance(db.Model):
  id=db.Column(db.Integer,primary_key=True)
  student_id=db.Column(db.Integer)
- day_id=db.Column(db.Integer)
+ day=db.Column(db.String(50))
  s1=db.Column(db.String(5))
  s2=db.Column(db.String(5))
  s3=db.Column(db.String(5))
@@ -50,25 +50,16 @@ class Attendance(db.Model):
 def load_user(id):
  return User.query.get(int(id))
 
-def minutes_late(start,arrival):
-
+def minutes_late(start,arr):
+ if not arr: return 0
  h1,m1=map(int,start.split(":"))
- h2,m2=map(int,arrival.split(":"))
+ h2,m2=map(int,arr.split(":"))
+ return max(0,(h2*60+m2)-(h1*60+m1))
 
- s=h1*60+m1
- a=h2*60+m2
-
- return max(0,a-s)
-
-def calc_payment(start,arrival,amount,late):
-
- late_min=minutes_late(start,arrival)
-
- steps=late_min//10
-
- deduction=steps*late
-
- return max(0,amount-deduction)
+def pay(start,arr,amount,late):
+ m=minutes_late(start,arr)
+ d=(m//10)*late
+ return max(0,amount-d)
 
 with app.app_context():
 
@@ -82,10 +73,15 @@ with app.app_context():
   db.session.add(Seder(name="סדר ב",start="14:00",amount=10,late=2))
   db.session.add(Seder(name="סדר ג",start="20:00",amount=10,late=2))
 
+ if not Day.query.first():
+  days=["א","ב","ג","ד","ה","ו","ז","ח","ט","י"]
+  for d in days:
+   db.session.add(Day(name=d,active=True))
+
  db.session.commit()
 
 @app.route("/")
-def home():
+def root():
  return redirect("/login")
 
 @app.route("/login",methods=["GET","POST"])
@@ -103,10 +99,10 @@ def login():
 
 @app.route("/dashboard")
 @login_required
-def dashboard():
+def dash():
 
  students=Student.query.all()
- days=Day.query.filter_by(active=True).all()
+ days=[d.name for d in Day.query.filter_by(active=True)]
 
  return render_template("dashboard.html",students=students,days=days)
 
@@ -117,10 +113,19 @@ def logout():
 
 @app.route("/api/students")
 def students():
-
  s=Student.query.all()
-
  return jsonify([{"tz":x.tz,"name":x.name} for x in s])
+
+@app.route("/api/add_student",methods=["POST"])
+def add_student():
+
+ tz=request.form["tz"]
+ name=request.form["name"]
+
+ db.session.add(Student(tz=tz,name=name))
+ db.session.commit()
+
+ return "ok"
 
 @app.route("/download")
 def download():
@@ -133,7 +138,6 @@ def download():
  for s in Student.query.all():
 
   rows=Attendance.query.filter_by(student_id=s.id).all()
-
   total=sum([r.total or 0 for r in rows])
 
   ws.append([s.tz,s.name,total])
@@ -141,7 +145,6 @@ def download():
  name="עדכון_ישיבת_בין_הזמנים_"+datetime.now().strftime("%Y_%m_%d_%H_%M")+".xlsx"
 
  path="/tmp/"+name
-
  wb.save(path)
 
  return send_file(path,as_attachment=True,download_name=name)
