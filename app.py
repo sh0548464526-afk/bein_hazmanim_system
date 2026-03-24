@@ -11,6 +11,14 @@ app.secret_key = "secret"
 app.config["SQLALCHEMY_DATABASE_URI"] = os.getenv("DATABASE_URL","sqlite:///local.db")
 app.config["SQLALCHEMY_TRACK_MODIFICATIONS"] = False
 
+with app.app_context():
+    db.create_all()
+
+    if not User.query.first():
+        admin = User(username="admin", password="1234")
+        db.session.add(admin)
+        db.session.commit()
+        
 db = SQLAlchemy(app)
 
 login_manager = LoginManager()
