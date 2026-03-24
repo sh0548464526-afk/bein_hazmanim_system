@@ -1,0 +1,55 @@
+<!DOCTYPE html>
+<html>
+
+<head>
+<link rel="stylesheet" href="/static/style.css">
+</head>
+
+<body>
+
+<header>
+
+<h1>ברוך הבא למערכת ישיבת בין הזמנים</h1>
+
+<div>
+
+<a href="/download">הורדת אקסל</a>
+
+<a href="/logout">התנתק</a>
+
+</div>
+
+</header>
+
+<div class="toolbar">
+
+<input id="search" placeholder="חיפוש תלמיד">
+
+<button onclick="print()">הדפס</button>
+
+</div>
+
+<table id="table">
+
+<tr>
+<th>תז</th>
+<th>שם</th>
+</tr>
+
+{% for s in students %}
+
+<tr>
+
+<td>{{s.tz}}</td>
+<td>{{s.name}}</td>
+
+</tr>
+
+{% endfor %}
+
+</table>
+
+<script src="/static/app.js"></script>
+
+</body>
+</html>
