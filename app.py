@@ -1,149 +1,101 @@
 
-import os
-from flask import Flask,render_template,request,redirect,jsonify,send_file
+from flask import Flask, render_template, request, redirect, url_for, send_file, jsonify
 from flask_sqlalchemy import SQLAlchemy
-from flask_login import LoginManager,UserMixin,login_user,login_required,logout_user,current_user
-from datetime import datetime
-from openpyxl import Workbook
+from werkzeug.security import generate_password_hash, check_password_hash
+import pandas as pd
+import io
+import os
+import datetime
 
-app=Flask(__name__)
-app.secret_key="secret"
+app = Flask(__name__)
+app.config['SQLALCHEMY_DATABASE_URI'] = os.environ.get('DATABASE_URL', 'sqlite:///test.db')
+app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
+app.secret_key = 'supersecretkey'
+db = SQLAlchemy(app)
 
-app.config["SQLALCHEMY_DATABASE_URI"]=os.getenv("DATABASE_URL","sqlite:///local.db")
-app.config["SQLALCHEMY_TRACK_MODIFICATIONS"]=False
-
-db=SQLAlchemy(app)
-login_manager=LoginManager(app)
-
-class User(UserMixin,db.Model):
- id=db.Column(db.Integer,primary_key=True)
- username=db.Column(db.String(50))
- password=db.Column(db.String(50))
+# ------------------ MODELS ------------------
+class User(db.Model):
+    id = db.Column(db.Integer, primary_key=True)
+    username = db.Column(db.String(80), unique=True, nullable=False)
+    password = db.Column(db.String(200), nullable=False)
 
 class Student(db.Model):
- id=db.Column(db.Integer,primary_key=True)
- name=db.Column(db.String(100))
+    id = db.Column(db.Integer, primary_key=True)
+    tz = db.Column(db.String(20), unique=True, nullable=False)
+    name = db.Column(db.String(100), nullable=False)
 
 class Day(db.Model):
- id=db.Column(db.Integer,primary_key=True)
- name=db.Column(db.String(50))
- active=db.Column(db.Boolean)
+    id = db.Column(db.Integer, primary_key=True)
+    date_name = db.Column(db.String(50), unique=True, nullable=False)
+    active = db.Column(db.Boolean, default=True)
 
-class Seder(db.Model):
- id=db.Column(db.Integer,primary_key=True)
- name=db.Column(db.String(50))
- start=db.Column(db.String(5))
- amount=db.Column(db.Float)
- late=db.Column(db.Float)
+class Shift(db.Model):
+    id = db.Column(db.Integer, primary_key=True)
+    name = db.Column(db.String(50), nullable=False)
+    start_time = db.Column(db.String(5))
+    amount = db.Column(db.Float)
+    late_deduction = db.Column(db.Float)
 
-class Attendance(db.Model):
- id=db.Column(db.Integer,primary_key=True)
- student_id=db.Column(db.Integer)
- day=db.Column(db.String(10))
- s1=db.Column(db.String(5))
- s2=db.Column(db.String(5))
- s3=db.Column(db.String(5))
- total=db.Column(db.Float)
+class Content(db.Model):
+    id = db.Column(db.Integer, primary_key=True)
+    student_tz = db.Column(db.String(20), db.ForeignKey('student.tz'))
+    student_name = db.Column(db.String(100))
+    # עמודות דינמיות לכל יום
+    # לדוגמה: day_1_shift1, day_1_shift2, day_1_shift3, day_1_total
 
-@login_manager.user_loader
-def load_user(id):
- return User.query.get(int(id))
+# ------------------ ROUTES ------------------
+@app.route('/')
+def index():
+    return redirect(url_for('login'))
 
-def calc(start,arr,amount,late):
- if not arr: return 0
- h1,m1=map(int,start.split(":"))
- h2,m2=map(int,arr.split(":"))
- late_min=max(0,(h2*60+m2)-(h1*60+m1))
- return max(0,amount-(late_min//10)*late)
-
-with app.app_context():
- db.create_all()
-
- if not User.query.first():
-  db.session.add(User(username="admin",password="1234"))
-
- if not Seder.query.first():
-  db.session.add(Seder(name="א",start="08:00",amount=10,late=2))
-  db.session.add(Seder(name="ב",start="14:00",amount=10,late=2))
-  db.session.add(Seder(name="ג",start="20:00",amount=10,late=2))
-
- if not Day.query.first():
-  for d in ["א","ב","ג","ד","ה"]:
-   db.session.add(Day(name=d,active=True))
-
- db.session.commit()
-
-@app.route("/",methods=["GET","POST"])
+@app.route('/login', methods=['GET','POST'])
 def login():
- if request.method=="POST":
-  u=User.query.filter_by(username=request.form["u"]).first()
-  if u and u.password==request.form["p"]:
-   login_user(u)
-   return redirect("/dash")
- return render_template("login.html")
+    if request.method == 'POST':
+        username = request.form['username']
+        password = request.form['password']
+        user = User.query.filter_by(username=username).first()
+        if user and check_password_hash(user.password, password):
+            return redirect(url_for('dashboard'))
+        return 'שם משתמש או סיסמה שגויים', 401
+    return render_template('login.html')
 
-@app.route("/dash")
-@login_required
-def dash():
- students=Student.query.all()
- days=[d.name for d in Day.query.filter_by(active=True)]
- return render_template("dash.html",students=students,days=days)
+@app.route('/dashboard')
+def dashboard():
+    students = Student.query.all()
+    days = Day.query.filter_by(active=True).all()
+    shifts = Shift.query.all()
+    return render_template('dashboard.html', students=students, days=days, shifts=shifts)
 
-@app.route("/save",methods=["POST"])
-def save():
- data=request.json
- s=Seder.query.all()
+@app.route('/download_excel')
+def download_excel():
+    students = Student.query.all()
+    days = Day.query.filter_by(active=True).all()
+    # יצירת DataFrame לדוגמה
+    data = []
+    for s in students:
+        row = {'תז': s.tz, 'שם': s.name}
+        for d in days:
+            row[d.date_name] = '08:00'  # Placeholder
+        data.append(row)
+    df = pd.DataFrame(data)
+    output = io.BytesIO()
+    df.to_excel(output, index=False)
+    output.seek(0)
+    filename = f"עדכון ישיבת בין הזמנים נכון ל {datetime.datetime.now().strftime('%Y-%m-%d %H-%M-%S')}.xlsx"
+    return send_file(output, as_attachment=True, download_name=filename, mimetype='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet')
 
- total=0
- total+=calc(s[0].start,data["s1"],s[0].amount,s[0].late)
- total+=calc(s[1].start,data["s2"],s[1].amount,s[1].late)
- total+=calc(s[2].start,data["s3"],s[2].amount,s[2].late)
+# ------------------ API Example ------------------
+@app.route('/api/phone', methods=['POST'])
+def api_phone():
+    # כאן ייכנסו פרמטרים מהקו טלפון
+    data = request.json
+    # לדוגמה - החזר אותו דבר
+    return jsonify(data)
 
- a=Attendance.query.filter_by(student_id=data["id"],day=data["day"]).first()
-
- if not a:
-  a=Attendance(student_id=data["id"],day=data["day"])
-
- a.s1=data["s1"]
- a.s2=data["s2"]
- a.s3=data["s3"]
- a.total=total
-
- db.session.add(a)
- db.session.commit()
-
- return {"total":total}
-
-@app.route("/students",methods=["POST"])
-def students():
- db.session.add(Student(name=request.form["name"]))
- db.session.commit()
- return "ok"
-
-@app.route("/download")
-def download():
- wb=Workbook()
- ws=wb.active
- ws.append(["שם","סהכ"])
-
- for s in Student.query.all():
-  rows=Attendance.query.filter_by(student_id=s.id).all()
-  total=sum([r.total or 0 for r in rows])
-  ws.append([s.name,total])
-
- name="report_"+datetime.now().strftime("%Y%m%d%H%M")+".xlsx"
- path="/tmp/"+name
- wb.save(path)
-
- return send_file(path,as_attachment=True,download_name=name)
-
-@app.route("/api/phone/get")
-def phone_get():
- return jsonify({"students":[s.name for s in Student.query.all()]})
-
-@app.route("/api/phone/update",methods=["POST"])
-def phone_update():
- return {"ok":1}
-
-if __name__=="__main__":
- app.run()
+if __name__ == '__main__':
+    db.create_all()
+    # יצירת משתמש admin לדוגמה
+    if not User.query.filter_by(username='admin').first():
+        db.session.add(User(username='admin', password=generate_password_hash('admin', method='sha256')))
+        db.session.commit()
+    app.run(host='0.0.0.0', port=5000, debug=True)

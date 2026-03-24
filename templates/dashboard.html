@@ -1,48 +1,31 @@
 
 <!DOCTYPE html>
-<html>
+<html lang="he">
 <head>
-<meta charset="utf8">
-<link rel="stylesheet" href="/static/style.css">
+<meta charset="UTF-8">
+<title>דשבורד</title>
+<style>
+body { font-family: Arial; padding:20px; background:#f0f0f0; }
+header { display:flex; justify-content:space-between; align-items:center; margin-bottom:20px; }
+button { padding:5px 10px; margin:0 5px; }
+table { border-collapse: collapse; width:100%; background:white; }
+th, td { border:1px solid #ccc; padding:8px; text-align:center; }
+</style>
 </head>
-
 <body>
-
 <header>
-
 <h1>ברוך הבא למערכת ישיבת בין הזמנים</h1>
-
 <div>
-
-<input id="search" placeholder="חיפוש תלמיד">
-
-<a href="/download">הורדת אקסל</a>
-
-<a href="/logout">התנתק</a>
-
+<button>התנתק</button>
+<button>הגדרות ⚙️</button>
+<button onclick="window.location='/download_excel'">הורד אקסל</button>
 </div>
-
 </header>
-
-<table id="table">
-
-<tr>
-<th>תז</th>
-<th>שם</th>
-</tr>
-
-{% for s in students %}
-
-<tr>
-<td>{{s.tz}}</td>
-<td>{{s.name}}</td>
-</tr>
-
+<table>
+<tr><th>תז</th><th>שם</th></tr>
+{% for student in students %}
+<tr><td>{{student.tz}}</td><td>{{student.name}}</td></tr>
 {% endfor %}
-
 </table>
-
-<script src="/static/app.js"></script>
-
 </body>
 </html>
