@@ -1,0 +1,62 @@
+
+<html dir="rtl">
+<body>
+
+<h2>דשבורד</h2>
+
+<input id="search" placeholder="חיפוש">
+
+<select id="day">
+{% for d in days %}
+<option>{{d}}</option>
+{% endfor %}
+</select>
+
+<table border="1" id="t">
+
+<tr><th>תלמיד</th><th>ס1</th><th>ס2</th><th>ס3</th><th>סהכ</th></tr>
+
+{% for s in students %}
+<tr data-id="{{s.id}}">
+<td>{{s.name}}</td>
+<td><input></td>
+<td><input></td>
+<td><input></td>
+<td class="total">0</td>
+</tr>
+{% endfor %}
+
+</table>
+
+<button onclick="save()">שמור</button>
+<a href="/download">אקסל</a>
+
+<script>
+
+function save(){
+
+let day=document.getElementById("day").value
+
+document.querySelectorAll("#t tr[data-id]").forEach(r=>{
+
+let id=r.dataset.id
+let s1=r.children[1].children[0].value
+let s2=r.children[2].children[0].value
+let s3=r.children[3].children[0].value
+
+fetch("/save",{
+method:"POST",
+headers:{"Content-Type":"application/json"},
+body:JSON.stringify({id,s1,s2,s3,day})
+})
+.then(x=>x.json())
+.then(d=>r.children[4].innerText=d.total)
+
+})
+
+}
+
+</script>
+
+</body>
+</html>

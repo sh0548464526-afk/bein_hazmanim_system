@@ -3,5 +3,5 @@ flask
 flask-login
 flask-sqlalchemy
 psycopg2-binary
-openpyxl
 gunicorn
+openpyxl

@@ -2,12 +2,12 @@
 import os
 from flask import Flask,render_template,request,redirect,jsonify,send_file
 from flask_sqlalchemy import SQLAlchemy
-from flask_login import LoginManager,UserMixin,login_user,login_required,logout_user
+from flask_login import LoginManager,UserMixin,login_user,login_required,logout_user,current_user
 from datetime import datetime
 from openpyxl import Workbook
 
 app=Flask(__name__)
-app.secret_key="secret123"
+app.secret_key="secret"
 
 app.config["SQLALCHEMY_DATABASE_URI"]=os.getenv("DATABASE_URL","sqlite:///local.db")
 app.config["SQLALCHEMY_TRACK_MODIFICATIONS"]=False
@@ -17,12 +17,11 @@ login_manager=LoginManager(app)
 
 class User(UserMixin,db.Model):
  id=db.Column(db.Integer,primary_key=True)
- username=db.Column(db.String(50),unique=True)
- password=db.Column(db.String(200))
+ username=db.Column(db.String(50))
+ password=db.Column(db.String(50))
 
 class Student(db.Model):
  id=db.Column(db.Integer,primary_key=True)
- tz=db.Column(db.String(20),unique=True)
  name=db.Column(db.String(100))
 
 class Day(db.Model):
@@ -40,7 +39,7 @@ class Seder(db.Model):
 class Attendance(db.Model):
  id=db.Column(db.Integer,primary_key=True)
  student_id=db.Column(db.Integer)
- day=db.Column(db.String(50))
+ day=db.Column(db.String(10))
  s1=db.Column(db.String(5))
  s2=db.Column(db.String(5))
  s3=db.Column(db.String(5))
@@ -50,117 +49,101 @@ class Attendance(db.Model):
 def load_user(id):
  return User.query.get(int(id))
 
-def minutes_late(start,arr):
+def calc(start,arr,amount,late):
  if not arr: return 0
  h1,m1=map(int,start.split(":"))
  h2,m2=map(int,arr.split(":"))
- return max(0,(h2*60+m2)-(h1*60+m1))
-
-def pay(start,arr,amount,late):
- m=minutes_late(start,arr)
- d=(m//10)*late
- return max(0,amount-d)
+ late_min=max(0,(h2*60+m2)-(h1*60+m1))
+ return max(0,amount-(late_min//10)*late)
 
 with app.app_context():
-
  db.create_all()
 
  if not User.query.first():
   db.session.add(User(username="admin",password="1234"))
 
  if not Seder.query.first():
-  db.session.add(Seder(name="סדר א",start="08:00",amount=10,late=2))
-  db.session.add(Seder(name="סדר ב",start="14:00",amount=10,late=2))
-  db.session.add(Seder(name="סדר ג",start="20:00",amount=10,late=2))
+  db.session.add(Seder(name="א",start="08:00",amount=10,late=2))
+  db.session.add(Seder(name="ב",start="14:00",amount=10,late=2))
+  db.session.add(Seder(name="ג",start="20:00",amount=10,late=2))
 
  if not Day.query.first():
-  days=["א","ב","ג","ד","ה","ו","ז","ח","ט","י"]
-  for d in days:
+  for d in ["א","ב","ג","ד","ה"]:
    db.session.add(Day(name=d,active=True))
 
  db.session.commit()
 
-@app.route("/")
-def root():
- return redirect("/login")
-
-@app.route("/login",methods=["GET","POST"])
+@app.route("/",methods=["GET","POST"])
 def login():
-
  if request.method=="POST":
-
-  u=User.query.filter_by(username=request.form["username"]).first()
-
-  if u and u.password==request.form["password"]:
+  u=User.query.filter_by(username=request.form["u"]).first()
+  if u and u.password==request.form["p"]:
    login_user(u)
-   return redirect("/dashboard")
-
+   return redirect("/dash")
  return render_template("login.html")
 
-@app.route("/dashboard")
+@app.route("/dash")
 @login_required
 def dash():
-
  students=Student.query.all()
  days=[d.name for d in Day.query.filter_by(active=True)]
+ return render_template("dash.html",students=students,days=days)
 
- return render_template("dashboard.html",students=students,days=days)
+@app.route("/save",methods=["POST"])
+def save():
+ data=request.json
+ s=Seder.query.all()
 
-@app.route("/logout")
-def logout():
- logout_user()
- return redirect("/login")
+ total=0
+ total+=calc(s[0].start,data["s1"],s[0].amount,s[0].late)
+ total+=calc(s[1].start,data["s2"],s[1].amount,s[1].late)
+ total+=calc(s[2].start,data["s3"],s[2].amount,s[2].late)
 
-@app.route("/api/students")
-def students():
- s=Student.query.all()
- return jsonify([{"tz":x.tz,"name":x.name} for x in s])
+ a=Attendance.query.filter_by(student_id=data["id"],day=data["day"]).first()
 
-@app.route("/api/add_student",methods=["POST"])
-def add_student():
+ if not a:
+  a=Attendance(student_id=data["id"],day=data["day"])
 
- tz=request.form["tz"]
- name=request.form["name"]
+ a.s1=data["s1"]
+ a.s2=data["s2"]
+ a.s3=data["s3"]
+ a.total=total
 
- db.session.add(Student(tz=tz,name=name))
+ db.session.add(a)
  db.session.commit()
 
+ return {"total":total}
+
+@app.route("/students",methods=["POST"])
+def students():
+ db.session.add(Student(name=request.form["name"]))
+ db.session.commit()
  return "ok"
 
 @app.route("/download")
 def download():
-
  wb=Workbook()
  ws=wb.active
-
- ws.append(["תז","שם","סהכ"])
+ ws.append(["שם","סהכ"])
 
  for s in Student.query.all():
-
   rows=Attendance.query.filter_by(student_id=s.id).all()
   total=sum([r.total or 0 for r in rows])
+  ws.append([s.name,total])
 
-  ws.append([s.tz,s.name,total])
-
- name="עדכון_ישיבת_בין_הזמנים_"+datetime.now().strftime("%Y_%m_%d_%H_%M")+".xlsx"
-
+ name="report_"+datetime.now().strftime("%Y%m%d%H%M")+".xlsx"
  path="/tmp/"+name
  wb.save(path)
 
  return send_file(path,as_attachment=True,download_name=name)
 
-@app.route("/api/phone")
-def phone():
+@app.route("/api/phone/get")
+def phone_get():
+ return jsonify({"students":[s.name for s in Student.query.all()]})
 
- action=request.args.get("action")
-
- if action=="students":
-
-  s=Student.query.all()
-
-  return jsonify([{"tz":x.tz,"name":x.name} for x in s])
-
- return jsonify({"ok":1})
+@app.route("/api/phone/update",methods=["POST"])
+def phone_update():
+ return {"ok":1}
 
 if __name__=="__main__":
  app.run()
